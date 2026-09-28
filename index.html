@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
+  header{background:#1a3c6e;color:#fff;padding:14px 20px;font-size:18px;font-weight:bold}
+  .wrap{max-width:900px;margin:16px auto;padding:0 12px}
+  .card{background:#fff;border-radius:8px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px #0002}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:180px}
+  label{font-size:12px;color:#555;display:block;margin-bottom:4px}
+  select,input{width:100%;padding:9px;border:1px solid #bbb;border-radius:6px;font-size:14px}
+  button{padding:10px 16px;border:0;border-radius:6px;color:#fff;font-size:14px;cursor:pointer}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .b1{background:#1a73e8}.b2{background:#d93025}.b3{background:#188038}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left}
+  th{background:#f1f3f4}
+  .cnt{font-size:22px;font-weight:bold;color:#1a3c6e}
+  #msg{padding:8px 12px;border-radius:6px;margin-bottom:10px;display:none;font-size:13px}
+  .ok{background:#e6f4ea;color:#137333}.er{background:#fce8e6;color:#c5221f}
+  a{color:#1a73e8}
+</style>
+</head>
+<body>
+<header>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v4-github</span></header>
+<div class="wrap">
+  <div id="msg"></div>
+
+  <div class="card">
+    <div class="row">
+      <div><label>Scanner Name</label><select id="scanner"></select></div>
+      <div><label>Client Name</label><select id="client"></select></div>
+      <div><label>Courier Name</label><select id="courier"></select></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>Scan AWB (barcode scanner — auto add on Enter)</label>
+    <input id="awb" placeholder="Scan here..." autocomplete="off">
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>Current session count: <span class="cnt" id="cnt">0</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="b1" onclick="startNew()">Start New Session</button>
+        <button class="b2" id="bClose" onclick="closeAll()">Close All Session</button>
+        <button class="b3" id="bPdf" onclick="savePdf()" disabled>Save PDF</button>
+      </div>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>#</th><th>AWB</th><th></th></tr></thead><tbody id="scanRows"></tbody></table>
+  </div>
+
+  <div class="card">
+    <b>Sessions</b>
+    <table style="margin-top:8px"><thead><tr><th>Client</th><th>Courier</th><th>Count</th><th>Status</th><th>PDF</th><th>Excel</th></tr></thead><tbody id="sessRows"></tbody></table>
+  </div>
+</div>
+
+<script>
+let sessions = [];      // completed sessions (client, courier, awbs, links)
+let cur = [];           // current scans
+let closed = false;
+const $ = id => document.getElementById(id);
+
+function fill(id, arr){ $(id).innerHTML = '<option value="">-- Select --</option>' + arr.map(x=>`<option>${x}</option>`).join(''); }
+function msg(t, ok){ const m=$('msg'); m.textContent=t; m.className=ok?'ok':'er'; m.style.display='block'; setTimeout(()=>m.style.display='none',5000); }
+
+const SS_ID = '14C7fM6z8_47FVhyGbLlA0S1XwF1ZsMemBP0bndDs8HM';
+['scanner','client','courier'].forEach(id=>$(id).innerHTML='<option>Loading...</option>');
+setTimeout(()=>{ if($('client').options.length<=1 && $('client').value==='Loading...') showLoadErr('Data abhi tak load nahi hua — F12 > Console ka error bhejo'); }, 8000);
+const HEADS = ['client','courier','scaner name','scanner name','scanner'];
+function showLoadErr(t){ const m=$('msg'); m.textContent=t; m.className='er'; m.style.display='block'; }
+function applyMasters(d){
+  const f = a => [...new Set((a||[]).map(x=>String(x||'').trim()).filter(x=>x && !HEADS.includes(x.toLowerCase())))];
+  fill('scanner',f(d.scanners)); fill('client',f(d.clients)); fill('courier',f(d.couriers));
+}
+// Backup: read tab gid=0 directly (columns A, D, F) via gviz
+function loadViaGviz(firstErr){
+  fetch('https://docs.google.com/spreadsheets/d/'+SS_ID+'/gviz/tq?tqx=out:json&gid=0&headers=0')
+    .then(r=>r.text()).then(t=>{
+      const j = JSON.parse(t.substring(t.indexOf('{'), t.lastIndexOf('}')+1));
+      const col = i => j.table.rows.map(r=>r.c && r.c[i] ? r.c[i].v : '');
+      applyMasters({clients:col(0), couriers:col(3), scanners:col(5)});
+    }).catch(e=>showLoadErr('Dropdown load error: '+e.message+' (sheet ko "Anyone with the link - Viewer" karo)'));
+}
+loadViaGviz();
+
+// ===== Apps Script Web App URL (Deploy > Web app > Execute as: Me, Access: Anyone) =====
+const API = 'PASTE_YOUR_WEB_APP_URL_HERE';
+function api(action, payload){
+  if(API.startsWith('PASTE')) return Promise.reject(new Error('index.html me API (Web App URL) paste karo'));
+  return fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(Object.assign({action}, payload))})
+    .then(r=>r.json()).then(j=>{ if(j && j.error) throw new Error(j.error); return j; });
+}
+
+$('awb').addEventListener('keydown', e=>{
+  if(e.key!=='Enter') return;
+  const v = e.target.value.trim(); e.target.value='';
+  if(!v) return;
+  if(!$('scanner').value||!$('client').value||!$('courier').value) return msg('Pehle Scanner, Client aur Courier select karo');
+  if(closed) return msg('Session closed hai — Start New Session karo');
+  if(cur.includes(v)) return msg('Duplicate AWB: '+v);
+  cur.push(v); renderCur();
+});
+
+function renderCur(){
+  $('cnt').textContent = cur.length;
+  $('scanRows').innerHTML = cur.map((a,i)=>`<tr><td>${i+1}</td><td>${a}</td><td><a href="#" onclick="del(${i});return false">remove</a></td></tr>`).reverse().join('');
+}
+function del(i){ cur.splice(i,1); renderCur(); }
+
+function pushCur(){
+  if(!cur.length) return;
+  sessions.push({client:$('client').value, courier:$('courier').value, awbs:cur.slice(), status:'Open'});
+  cur=[]; renderCur();
+}
+function startNew(){
+  if(closed){ sessions=[]; closed=false; $('bPdf').disabled=true; $('bClose').disabled=false; }
+  else pushCur();
+  $('client').value=''; $('courier').value=''; renderSess(); $('client').focus();
+}
+function closeAll(){
+  if(!$('scanner').value) return msg('Scanner select karo');
+  pushCur();
+  if(!sessions.length) return msg('Koi scan nahi hai');
+  $('bClose').disabled=true;
+  api('closeAllSessions', {sessions:sessions.map(({client,courier,awbs})=>({client,courier,awbs})), scanner:$('scanner').value})
+    .then(()=>{
+      sessions.forEach(s=>s.status='Closed'); closed=true; $('bPdf').disabled=false; renderSess();
+      msg('Sab sessions close — data client ki tab me save ho gaya',true);
+    }).catch(e=>{ $('bClose').disabled=false; msg('Error: '+e.message); });
+}
+function savePdf(){
+  $('bPdf').disabled=true; msg('PDF/Excel ban raha hai...',true);
+  api('savePdf', {sessions:sessions.map(({client,courier,awbs})=>({client,courier,awbs})), scanner:$('scanner').value})
+    .then(r=>{
+      r.forEach((x,i)=>{ sessions[i].pdf=x.pdf; sessions[i].xlsx=x.xlsx; sessions[i].status='PDF Saved'; });
+      renderSess(); msg('PDF + Excel save ho gaye, links Manifest Log me add ho gaye',true);
+    }).catch(e=>{ $('bPdf').disabled=false; msg('Error: '+e.message); });
+}
+function renderSess(){
+  $('sessRows').innerHTML = sessions.map(s=>`<tr><td>${s.client}</td><td>${s.courier}</td><td>${s.awbs.length}</td><td>${s.status}</td>
+    <td>${s.pdf?`<a href="${s.pdf}" target="_blank">PDF</a>`:'-'}</td><td>${s.xlsx?`<a href="${s.xlsx}" target="_blank">Excel</a>`:'-'}</td></tr>`).join('');
+}
+</script>
+</body>
+</html>
