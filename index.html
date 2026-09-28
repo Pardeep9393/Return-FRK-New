@@ -26,7 +26,7 @@
 </style>
 </head>
 <body>
-<header>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v5-github</span></header>
+<header>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v6-github</span></header>
 <div class="wrap">
   <div id="msg"></div>
 
@@ -46,7 +46,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="b1" onclick="startNew()">Start New Session</button>
         <button class="b2" id="bClose" onclick="closeAll()">Close All Session</button>
-        <button class="b3" id="bPdf" onclick="savePdf()" disabled>Save PDF</button>
+        <button class="b3" id="bPdf" onclick="savePdf()">Save PDF</button>
       </div>
     </div>
     <table style="margin-top:12px"><thead><tr><th>#</th><th>AWB</th><th></th></tr></thead><tbody id="scanRows"></tbody></table>
@@ -118,7 +118,7 @@ function pushCur(){
   cur=[]; renderCur();
 }
 function startNew(){
-  if(closed){ sessions=[]; closed=false; $('bPdf').disabled=true; $('bClose').disabled=false; }
+  if(closed){ sessions=[]; closed=false; $('bPdf').disabled=false; $('bClose').disabled=false; }
   else pushCur();
   $('client').value=''; $('courier').value=''; renderSess(); $('client').focus();
 }
@@ -134,11 +134,16 @@ function closeAll(){
     }).catch(e=>{ $('bClose').disabled=false; showLoadErr('Close All Session error: '+e.message); });
 }
 function savePdf(){
-  $('bPdf').disabled=true; msg('PDF/Excel ban raha hai...',true);
-  api('savePdf', {sessions:sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), scanner:$('scanner').value})
+  if(!$('scanner').value) return msg('Scanner select karo');
+  pushCur();
+  if(!sessions.length) return msg('Koi scan nahi hai');
+  $('bPdf').disabled=true; $('bClose').disabled=true; msg('Save ho raha hai, PDF/Excel ban rahe hain...',true);
+  const list = sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), sc=$('scanner').value;
+  const pre = closed ? Promise.resolve() : api('closeAllSessions', {sessions:list, scanner:sc});
+  pre.then(()=>{ closed=true; sessions.forEach(s=>s.status='Closed'); renderSess(); return api('savePdf', {sessions:list, scanner:sc}); })
     .then(r=>{
       r.forEach((x,i)=>{ sessions[i].pdf=x.pdf; sessions[i].xlsx=x.xlsx; sessions[i].status='PDF Saved'; });
-      renderSess(); msg('PDF + Excel save ho gaye, links Manifest Log me add ho gaye',true);
+      renderSess(); msg('PDF + Excel save ho gaye, links sheet me add ho gaye',true);
     }).catch(e=>{ $('bPdf').disabled=false; showLoadErr('Save PDF error: '+e.message); });
 }
 function renderSess(){
