@@ -26,7 +26,7 @@
 </style>
 </head>
 <body>
-<header>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v4-github</span></header>
+<header>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v5-github</span></header>
 <div class="wrap">
   <div id="msg"></div>
 
@@ -113,7 +113,8 @@ function del(i){ cur.splice(i,1); renderCur(); }
 
 function pushCur(){
   if(!cur.length) return;
-  sessions.push({client:$('client').value, courier:$('courier').value, awbs:cur.slice(), status:'Open'});
+  const c=$('client').value, k=$('courier').value, ab=x=>x.replace(/[^A-Za-z0-9]/g,'').substring(0,3).toUpperCase(), d=new Date(), p=n=>String(n).padStart(2,'0');
+  sessions.push({client:c, courier:k, awbs:cur.slice(), status:'Open', manifest:'RET-'+ab(c)+'-'+ab(k)+'-'+p(d.getDate())+p(d.getMonth()+1)+String(d.getFullYear()).slice(2)+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())});
   cur=[]; renderCur();
 }
 function startNew(){
@@ -126,19 +127,19 @@ function closeAll(){
   pushCur();
   if(!sessions.length) return msg('Koi scan nahi hai');
   $('bClose').disabled=true;
-  api('closeAllSessions', {sessions:sessions.map(({client,courier,awbs})=>({client,courier,awbs})), scanner:$('scanner').value})
+  api('closeAllSessions', {sessions:sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), scanner:$('scanner').value})
     .then(()=>{
       sessions.forEach(s=>s.status='Closed'); closed=true; $('bPdf').disabled=false; renderSess();
       msg('Sab sessions close — data client ki tab me save ho gaya',true);
-    }).catch(e=>{ $('bClose').disabled=false; msg('Error: '+e.message); });
+    }).catch(e=>{ $('bClose').disabled=false; showLoadErr('Close All Session error: '+e.message); });
 }
 function savePdf(){
   $('bPdf').disabled=true; msg('PDF/Excel ban raha hai...',true);
-  api('savePdf', {sessions:sessions.map(({client,courier,awbs})=>({client,courier,awbs})), scanner:$('scanner').value})
+  api('savePdf', {sessions:sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), scanner:$('scanner').value})
     .then(r=>{
       r.forEach((x,i)=>{ sessions[i].pdf=x.pdf; sessions[i].xlsx=x.xlsx; sessions[i].status='PDF Saved'; });
       renderSess(); msg('PDF + Excel save ho gaye, links Manifest Log me add ho gaye',true);
-    }).catch(e=>{ $('bPdf').disabled=false; msg('Error: '+e.message); });
+    }).catch(e=>{ $('bPdf').disabled=false; showLoadErr('Save PDF error: '+e.message); });
 }
 function renderSess(){
   $('sessRows').innerHTML = sessions.map(s=>`<tr><td>${s.client}</td><td>${s.courier}</td><td>${s.awbs.length}</td><td>${s.status}</td>
