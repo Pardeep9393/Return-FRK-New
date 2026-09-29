@@ -45,9 +45,15 @@
     <div class="card"><div class="row">
       <div><label>From Date</label><input type="date" id="fd"></div>
       <div><label>To Date</label><input type="date" id="td"></div>
-      <div><label>Client</label><select id="fc"></select></div>
+      <div style="position:relative"><label>Client (multi-select)</label>
+        <button class="g" type="button" style="width:100%;text-align:left;background:#fff;color:#222;border:1px solid #bbb" onclick="toggleClientBox()" id="fcBtn">All clients</button>
+        <div id="fcBox" style="display:none;position:absolute;z-index:10;background:#fff;border:1px solid #bbb;border-radius:6px;max-height:220px;overflow:auto;min-width:220px;padding:6px;box-shadow:0 2px 8px #0003"></div>
+      </div>
       <div><label>Courier</label><select id="fk"></select></div>
-      <div style="flex:0 0 auto;align-self:flex-end;display:flex;gap:6px"><button onclick="render()">Filter</button><button class="g" onclick="clearF()">Clear</button><button class="g" onclick="load()">Refresh</button></div>
+      <div style="flex:0 0 auto;align-self:flex-end;display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="render()">Filter</button><button class="g" onclick="clearF()">Clear</button><button class="g" onclick="load()">Refresh</button>
+        <button onclick="downloadCsv()">Download (Client-wise)</button>
+      </div>
     </div></div>
     <div class="card kpis">
       <div class="kpi"><span id="k1">0</span>Total Returns</div>
@@ -69,7 +75,7 @@
 const API='https://script.google.com/macros/s/AKfycbxyDWC6TCiNc4yiM9kpu6ejyr-a88jIJgYyf4xQgVOdB5a30SUdZY2IOXFNkbmPSvWr1g/exec';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let LOG=[], AUTH=null;
+let LOG=[], AUTH=null, SELC=new Set();
 const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 
 function api(action,extra){
@@ -89,22 +95,62 @@ function doLogin(){
 function start(d){
   LOG=d.log; $('login').style.display='none'; $('app').style.display='block'; $('who').textContent=AUTH.email;
   const u=k=>[...new Set(LOG.map(r=>r[k]))].sort();
-  $('fc').innerHTML='<option value="">All</option>'+u('client').map(x=>`<option>${esc(x)}</option>`).join('');
+  const clients=u('client');
+  SELC=new Set(clients);
+  $('fcBox').innerHTML='<label style="display:block;padding:3px 4px;font-weight:bold;border-bottom:1px solid #eee;margin-bottom:4px"><input type="checkbox" id="fcAll" checked onchange="toggleAllClients(this.checked)"> All</label>'+
+    clients.map(c=>`<label style="display:block;padding:3px 4px"><input type="checkbox" class="fcItem" value="${esc(c)}" checked onchange="clientBoxChanged()"> ${esc(c)}</label>`).join('');
   $('fk').innerHTML='<option value="">All</option>'+u('courier').map(x=>`<option>${esc(x)}</option>`).join('');
+  updateClientBtnLabel();
   render();
 }
 function load(){ $('aerr').textContent='Loading...'; api('viewerData').then(d=>{const f=[$('fd').value,$('td').value,$('fc').value,$('fk').value];start(d);$('fd').value=f[0];$('td').value=f[1];$('fc').value=f[2];$('fk').value=f[3];render();$('aerr').textContent='';}).catch(e=>$('aerr').textContent=e.message); }
 function logout(){sessionStorage.removeItem('rv_auth');location.reload();}
-function clearF(){['fd','td','fc','fk'].forEach(i=>$(i).value='');render();}
+function clearF(){
+  ['fd','td','fk'].forEach(i=>$(i).value='');
+  document.querySelectorAll('.fcItem').forEach(c=>c.checked=true); if($('fcAll'))$('fcAll').checked=true;
+  clientBoxChanged(); render();
+}
+function toggleClientBox(){ const b=$('fcBox'); b.style.display = b.style.display==='none' ? 'block' : 'none'; }
+document.addEventListener('click', e=>{ if($('fcBox') && $('fcBox').style.display==='block' && !e.target.closest('#fcBox') && e.target.id!=='fcBtn') $('fcBox').style.display='none'; });
+function toggleAllClients(checked){ document.querySelectorAll('.fcItem').forEach(c=>c.checked=checked); clientBoxChanged(); }
+function clientBoxChanged(){
+  const items=[...document.querySelectorAll('.fcItem')]; SELC=new Set(items.filter(c=>c.checked).map(c=>c.value));
+  if($('fcAll')) $('fcAll').checked = SELC.size===items.length;
+  updateClientBtnLabel(); render();
+}
+function updateClientBtnLabel(){
+  const items=[...document.querySelectorAll('.fcItem')];
+  $('fcBtn').textContent = SELC.size===0 ? 'No client selected' : (SELC.size===items.length ? 'All clients' : (SELC.size<=2 ? [...SELC].join(', ') : SELC.size+' clients selected'));
+}
 
 function render(){
-  const f=$('fd').value?new Date($('fd').value+'T00:00'):null, t=$('td').value?new Date($('td').value+'T00:00'):null, c=$('fc').value, k=$('fk').value;
-  const rows=LOG.map((r,i)=>Object.assign({i,d:pd(r.date)},r)).filter(r=>(!f||(r.d&&r.d>=f))&&(!t||(r.d&&r.d<=t))&&(!c||r.client===c)&&(!k||r.courier===k))
+  const f=$('fd').value?new Date($('fd').value+'T00:00'):null, t=$('td').value?new Date($('td').value+'T00:00'):null, k=$('fk').value;
+  const rows=LOG.map((r,i)=>Object.assign({i,d:pd(r.date)},r)).filter(r=>(!f||(r.d&&r.d>=f))&&(!t||(r.d&&r.d<=t))&&SELC.has(r.client)&&(!k||r.courier===k))
     .sort((a,b)=>(b.d||0)-(a.d||0)||b.i-a.i);
+  window._filtered = rows;
   $('k1').textContent=rows.reduce((n,r)=>n+(+r.count||0),0); $('k2').textContent=rows.length; $('k3').textContent=new Set(rows.map(r=>r.client)).size;
   $('rows').innerHTML=rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.client)}</td><td>${esc(r.courier)}</td><td>${esc(r.count)}</td>
     <td>${r.pdf?`<a href="${esc(r.pdf)}" target="_blank" rel="noopener">PDF</a>`:'-'}</td><td>${r.xlsx?`<a href="${esc(r.xlsx)}" target="_blank" rel="noopener">Excel</a>`:'-'}</td>
     <td>${esc(r.mail)||'-'}</td><td><a href="#" onclick="scans(${r.i});return false">View</a></td></tr>`).join('')||'<tr><td colspan="8">No data</td></tr>';
+}
+function downloadCsv(){
+  const rows = window._filtered || [];
+  if(!rows.length){ $('aerr').textContent='Koi data nahi hai (filter check karo)'; return; }
+  const byClient = {};
+  rows.forEach(r=>{ (byClient[r.client]=byClient[r.client]||[]).push(r); });
+  const head=['Client','Date','Courier','Count of Return Received','PDF Link','Excel Link'];
+  const esc2=v=>{ v=String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const lines=[head.join(',')];
+  Object.keys(byClient).sort().forEach(c=>{
+    let tot=0;
+    byClient[c].forEach(r=>{ tot+=(+r.count||0); lines.push([c,r.date,r.courier,r.count,r.pdf,r.xlsx].map(esc2).join(',')); });
+    lines.push([c,'','','Total: '+tot,'',''].map(esc2).join(','));
+    lines.push('');
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='Return_Summary_ClientWise_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
 }
 function scans(i){
   const r=LOG[i], d=pd(r.date); $('mt').textContent=`${r.client} | ${r.courier} | ${r.date}`; $('mrows').innerHTML='<tr><td colspan="6">Loading...</td></tr>'; $('modal').style.display='block';
