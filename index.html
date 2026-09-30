@@ -39,7 +39,7 @@
 </head>
 <body>
 <header>
-  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v9-github</span></span>
+  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v10-github</span></span>
   <div class="tabs">
     <button id="tabAdminBtn" class="active" onclick="showTab('admin')">Admin</button>
     <button id="tabViewerBtn" onclick="showTab('viewer')">Viewer</button>
@@ -64,7 +64,7 @@
     <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>Current session count: <span class="cnt" id="cnt">0</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="b1" onclick="startNew()">Start New Session</button>
+        <button class="b1" id="bStart" onclick="startNew()">Start New Session</button>
         <button class="b2" id="bClose" onclick="closeAll()">Close All Session</button>
         <button class="b3" id="bPdf" onclick="savePdf()">Save PDF</button>
       </div>
@@ -75,6 +75,16 @@
   <div class="card">
     <b>Sessions</b>
     <table style="margin-top:8px"><thead><tr><th>Client</th><th>Courier</th><th>Count</th><th>Status</th><th>PDF</th><th>Excel</th></tr></thead><tbody id="sessRows"></tbody></table>
+  </div>
+</div>
+
+<div id="cModal" style="display:none;position:fixed;inset:0;background:#0007;align-items:center;justify-content:center;z-index:60">
+  <div class="card" style="max-width:340px;text-align:center">
+    <p id="cmMsg" style="margin:0 0 14px;font-size:14px"></p>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="b1" onclick="cmYes()">Yes</button>
+      <button class="g" onclick="cmNo()">No</button>
+    </div>
   </div>
 </div>
 
@@ -145,6 +155,11 @@ let sessions = [];      // completed sessions (client, courier, awbs, links)
 let cur = [];           // {awb, box}
 const BOX_OPTS=['Bad','Damage','Open','QC Failed'];
 let closed = false;
+let pdfSaved = true;   // false right after Close, until Save PDF succeeds — blocks Start New Session
+
+function showConfirm(text, onYes){ $('cmMsg').textContent = text; $('cModal').style.display='flex'; window._cmYes = onYes; }
+function cmNo(){ $('cModal').style.display='none'; window._cmYes=null; }
+function cmYes(){ $('cModal').style.display='none'; const f=window._cmYes; window._cmYes=null; if(f) f(); }
 
 function fill(id, arr){ $(id).innerHTML = '<option value="">-- Select --</option>' + arr.map(x=>`<option>${x}</option>`).join(''); }
 function msg(t, ok){ const m=$('msg'); m.textContent=t; m.className=ok?'ok':'er'; m.style.display='block'; setTimeout(()=>m.style.display='none',5000); }
@@ -196,33 +211,43 @@ function pushCur(){
   cur=[]; renderCur();
 }
 function startNew(){
-  if(closed){ sessions=[]; closed=false; $('bPdf').disabled=false; $('bClose').disabled=false; }
-  else pushCur();
+  if(closed){
+    if(!pdfSaved) return msg('Pehle Save PDF karo — tabhi naya session start hoga');
+    sessions=[]; closed=false; $('bPdf').disabled=false; $('bClose').disabled=false; $('bStart').disabled=false;
+  } else pushCur();
   $('client').value=''; $('courier').value=''; renderSess(); $('client').focus();
 }
 function closeAll(){
   if(!$('scanner').value) return msg('Scanner select karo');
   pushCur();
   if(!sessions.length) return msg('Koi scan nahi hai');
+  showConfirm('Sab sessions close karne hain? Data client ki tab me save ho jayega.', doCloseAll);
+}
+function doCloseAll(){
   $('bClose').disabled=true;
   api('closeAllSessions', {sessions:sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), scanner:$('scanner').value})
     .then(()=>{
-      sessions.forEach(s=>s.status='Closed'); closed=true; $('bPdf').disabled=false; renderSess();
-      msg('Sab sessions close — data client ki tab me save ho gaya',true);
+      sessions.forEach(s=>s.status='Closed'); closed=true; pdfSaved=false;
+      $('bPdf').disabled=false; $('bStart').disabled=true; renderSess();
+      msg('Sessions close ho gaye — Save PDF karna zaroori hai naye session ke liye',true);
     }).catch(e=>{ $('bClose').disabled=false; showLoadErr('Close All Session error: '+e.message); });
 }
 function savePdf(){
   if(!$('scanner').value) return msg('Scanner select karo');
   pushCur();
   if(!sessions.length) return msg('Koi scan nahi hai');
-  $('bPdf').disabled=true; $('bClose').disabled=true; msg('Save ho raha hai, PDF/Excel ban rahe hain...',true);
+  showConfirm('PDF + Excel save karna hai? Links Summary sheet me add honge.', doSavePdf);
+}
+function doSavePdf(){
+  $('bPdf').disabled=true; $('bClose').disabled=true; $('bStart').disabled=true; msg('Save ho raha hai, PDF/Excel ban rahe hain...',true);
   const list = sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), sc=$('scanner').value;
   const pre = closed ? Promise.resolve() : api('closeAllSessions', {sessions:list, scanner:sc});
   pre.then(()=>{ closed=true; sessions.forEach(s=>s.status='Closed'); renderSess(); return api('savePdf', {sessions:list, scanner:sc}); })
     .then(r=>{
       r.forEach((x,i)=>{ sessions[i].pdf=x.pdf; sessions[i].xlsx=x.xlsx; sessions[i].status='PDF Saved'; });
+      pdfSaved=true; $('bStart').disabled=false;
       renderSess(); msg('PDF + Excel save ho gaye, links sheet me add ho gaye',true);
-    }).catch(e=>{ $('bPdf').disabled=false; showLoadErr('Save PDF error: '+e.message); });
+    }).catch(e=>{ $('bPdf').disabled=false; $('bClose').disabled=false; showLoadErr('Save PDF error: '+e.message); });
 }
 function renderSess(){
   $('sessRows').innerHTML = sessions.map(s=>`<tr><td>${s.client}</td><td>${s.courier}</td><td>${s.awbs.length}</td><td>${s.status}</td>
