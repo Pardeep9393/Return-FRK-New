@@ -1,167 +1,161 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
+<base target="_top">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Return Received - Viewer</title>
 <style>
   *{box-sizing:border-box}
   body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
-  header{background:#1a3c6e;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-  header b{font-size:17px}.wrap{max-width:1100px;margin:14px auto;padding:0 10px}
-  .card{background:#fff;border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px #0002}
-  .row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:140px}
-  label{font-size:12px;color:#555;display:block;margin-bottom:3px}
-  input,select{width:100%;padding:9px;border:1px solid #bbb;border-radius:6px;font-size:14px}
-  button{padding:9px 14px;border:0;border-radius:6px;background:#1a73e8;color:#fff;cursor:pointer;font-size:14px}
-  button.g{background:#5f6368}
-  #login{max-width:340px;margin:60px auto}
-  #login .card>*{margin-bottom:10px}
-  .err{color:#c5221f;font-size:13px;min-height:16px}
-  .kpis{display:flex;gap:10px;flex-wrap:wrap}.kpi{flex:1;min-width:120px;text-align:center}
-  .kpi span{display:block;font-size:24px;font-weight:bold;color:#1a3c6e}
-  .tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{border-bottom:1px solid #ddd;padding:7px 8px;text-align:left;white-space:nowrap}th{background:#f1f3f4}
+  header{background:#1a3c6e;color:#fff;padding:14px 20px;font-size:18px;font-weight:bold}
+  .wrap{max-width:900px;margin:16px auto;padding:0 12px}
+  .card{background:#fff;border-radius:8px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px #0002}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:180px}
+  label{font-size:12px;color:#555;display:block;margin-bottom:4px}
+  select,input{width:100%;padding:9px;border:1px solid #bbb;border-radius:6px;font-size:14px}
+  button{padding:10px 16px;border:0;border-radius:6px;color:#fff;font-size:14px;cursor:pointer}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .b1{background:#1a73e8}.b2{background:#d93025}.b3{background:#188038}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left}
+  th{background:#f1f3f4}
+  .cnt{font-size:22px;font-weight:bold;color:#1a3c6e}
+  #msg{padding:8px 12px;border-radius:6px;margin-bottom:10px;display:none;font-size:13px}
+  .ok{background:#e6f4ea;color:#137333}.er{background:#fce8e6;color:#c5221f}
   a{color:#1a73e8}
-  #modal{display:none;position:fixed;inset:0;background:#0007;padding:20px;overflow:auto}
-  #modal .card{max-width:800px;margin:0 auto}
 </style>
 </head>
 <body>
+<header>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v8-github</span></header>
+<div class="wrap">
+  <div id="msg"></div>
 
-<div id="login">
   <div class="card">
-    <h3 style="margin:0 0 4px">Return Received - Viewer</h3>
-    <div><label>Email</label><input id="em" type="email" placeholder="you@company.com"></div>
-    <div><label>Password</label><input id="pw" type="password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <button onclick="doLogin()" style="width:100%">Login</button>
-    <div class="err" id="lerr"></div>
-  </div>
-</div>
-
-<div id="app" style="display:none">
-  <header><b>Return Received - Viewer</b><span><span id="who" style="font-size:12px;margin-right:10px"></span><button class="g" onclick="logout()">Logout</button></span></header>
-  <div class="wrap">
-    <div class="card"><div class="row">
-      <div><label>From Date</label><input type="date" id="fd"></div>
-      <div><label>To Date</label><input type="date" id="td"></div>
-      <div style="position:relative"><label>Client (multi-select)</label>
-        <button class="g" type="button" style="width:100%;text-align:left;background:#fff;color:#222;border:1px solid #bbb" onclick="toggleClientBox()" id="fcBtn">All clients</button>
-        <div id="fcBox" style="display:none;position:absolute;z-index:10;background:#fff;border:1px solid #bbb;border-radius:6px;max-height:220px;overflow:auto;min-width:220px;padding:6px;box-shadow:0 2px 8px #0003"></div>
-      </div>
-      <div><label>Courier</label><select id="fk"></select></div>
-      <div style="flex:0 0 auto;align-self:flex-end;display:flex;gap:6px;flex-wrap:wrap">
-        <button onclick="render()">Filter</button><button class="g" onclick="clearF()">Clear</button><button class="g" onclick="load()">Refresh</button>
-        <button onclick="downloadCsv()">Download (Client-wise)</button>
-      </div>
-    </div></div>
-    <div class="card kpis">
-      <div class="kpi"><span id="k1">0</span>Total Returns</div>
-      <div class="kpi"><span id="k2">0</span>Manifests</div>
-      <div class="kpi"><span id="k3">0</span>Clients</div>
+    <div class="row">
+      <div><label>Scanner Name</label><select id="scanner"></select></div>
+      <div><label>Client Name</label><select id="client"></select></div>
+      <div><label>Courier Name</label><select id="courier"></select></div>
     </div>
-    <div class="card tw"><table><thead><tr><th>Date</th><th>Client</th><th>Courier</th><th>Count</th><th>PDF</th><th>Excel</th><th>Mail</th><th>AWBs</th></tr></thead><tbody id="rows"></tbody></table></div>
-    <div class="err" id="aerr"></div>
   </div>
-</div>
 
-<div id="modal" onclick="if(event.target===this)this.style.display='none'">
-  <div class="card"><div style="display:flex;justify-content:space-between"><b id="mt"></b><button class="g" onclick="$('modal').style.display='none'">Close</button></div>
-    <div class="tw" style="margin-top:10px"><table><thead><tr><th>#</th><th>Scan Date</th><th>AWB</th><th>Courier</th><th>Scanner</th><th>Manifest</th></tr></thead><tbody id="mrows"></tbody></table></div>
+  <div class="card">
+    <label>Scan AWB (barcode scanner — auto add on Enter)</label>
+    <input id="awb" placeholder="Scan here..." autocomplete="off">
+    <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>Current session count: <span class="cnt" id="cnt">0</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="b1" onclick="startNew()">Start New Session</button>
+        <button class="b2" id="bClose" onclick="closeAll()">Close All Session</button>
+        <button class="b3" id="bPdf" onclick="savePdf()">Save PDF</button>
+      </div>
+    </div>
+    <table style="margin-top:12px"><thead><tr><th>#</th><th>AWB</th><th>Box Condition</th><th></th></tr></thead><tbody id="scanRows"></tbody></table>
+  </div>
+
+  <div class="card">
+    <b>Sessions</b>
+    <table style="margin-top:8px"><thead><tr><th>Client</th><th>Courier</th><th>Count</th><th>Status</th><th>PDF</th><th>Excel</th></tr></thead><tbody id="sessRows"></tbody></table>
   </div>
 </div>
 
 <script>
-const API='https://script.google.com/macros/s/AKfycbxyDWC6TCiNc4yiM9kpu6ejyr-a88jIJgYyf4xQgVOdB5a30SUdZY2IOXFNkbmPSvWr1g/exec';
-const $=id=>document.getElementById(id);
-const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let LOG=[], AUTH=null, SELC=new Set();
-const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+let sessions = [];      // completed sessions (client, courier, awbs, links)
+let cur = [];           // {awb, box}
+const BOX_OPTS=['Bad','Damage','Open','QC Failed'];           // current scans
+let closed = false;
+const $ = id => document.getElementById(id);
 
-function api(action,extra){
-  return fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action},AUTH,extra))})
-    .then(r=>r.json()).then(j=>{if(j&&j.error)throw new Error(j.error);return j;});
-}
-function pd(s){const m=String(s).match(/(\d+)-(\w+)-(\d+)/);return m?new Date(+m[3],MON[m[2].toLowerCase().slice(0,3)],+m[1]):null;}
+function fill(id, arr){ $(id).innerHTML = '<option value="">-- Select --</option>' + arr.map(x=>`<option>${x}</option>`).join(''); }
+function msg(t, ok){ const m=$('msg'); m.textContent=t; m.className=ok?'ok':'er'; m.style.display='block'; setTimeout(()=>m.style.display='none',5000); }
 
-function doLogin(){
-  AUTH={email:$('em').value.trim(),password:$('pw').value};
-  $('lerr').textContent='Checking...';
-  api('viewerData').then(d=>{
-    sessionStorage.setItem('rv_auth',JSON.stringify(AUTH));
-    start(d);
-  }).catch(e=>{AUTH=null;$('lerr').textContent=e.message;});
+const SS_ID = '14C7fM6z8_47FVhyGbLlA0S1XwF1ZsMemBP0bndDs8HM';
+['scanner','client','courier'].forEach(id=>$(id).innerHTML='<option>Loading...</option>');
+setTimeout(()=>{ if($('client').options.length<=1 && $('client').value==='Loading...') showLoadErr('Data abhi tak load nahi hua — F12 > Console ka error bhejo'); }, 8000);
+const HEADS = ['client','courier','scaner name','scanner name','scanner'];
+function showLoadErr(t){ const m=$('msg'); m.textContent=t; m.className='er'; m.style.display='block'; }
+function applyMasters(d){
+  const f = a => [...new Set((a||[]).map(x=>String(x||'').trim()).filter(x=>x && !HEADS.includes(x.toLowerCase())))];
+  fill('scanner',f(d.scanners)); fill('client',f(d.clients)); fill('courier',f(d.couriers));
 }
-function start(d){
-  LOG=d.log; $('login').style.display='none'; $('app').style.display='block'; $('who').textContent=AUTH.email;
-  const u=k=>[...new Set(LOG.map(r=>r[k]))].sort();
-  const clients=u('client');
-  SELC=new Set(clients);
-  $('fcBox').innerHTML='<label style="display:block;padding:3px 4px;font-weight:bold;border-bottom:1px solid #eee;margin-bottom:4px"><input type="checkbox" id="fcAll" checked onchange="toggleAllClients(this.checked)"> All</label>'+
-    clients.map(c=>`<label style="display:block;padding:3px 4px"><input type="checkbox" class="fcItem" value="${esc(c)}" checked onchange="clientBoxChanged()"> ${esc(c)}</label>`).join('');
-  $('fk').innerHTML='<option value="">All</option>'+u('courier').map(x=>`<option>${esc(x)}</option>`).join('');
-  updateClientBtnLabel();
-  render();
+// Backup: read tab gid=0 directly (columns A, D, F) via gviz
+function loadViaGviz(firstErr){
+  fetch('https://docs.google.com/spreadsheets/d/'+SS_ID+'/gviz/tq?tqx=out:json&gid=0&headers=0')
+    .then(r=>r.text()).then(t=>{
+      const j = JSON.parse(t.substring(t.indexOf('{'), t.lastIndexOf('}')+1));
+      const col = i => j.table.rows.map(r=>r.c && r.c[i] ? r.c[i].v : '');
+      applyMasters({clients:col(0), couriers:col(3), scanners:col(5)});
+    }).catch(e=>showLoadErr('Dropdown load error: '+e.message+' (sheet ko "Anyone with the link - Viewer" karo)'));
 }
-function load(){ $('aerr').textContent='Loading...'; api('viewerData').then(d=>{const f=[$('fd').value,$('td').value,$('fc').value,$('fk').value];start(d);$('fd').value=f[0];$('td').value=f[1];$('fc').value=f[2];$('fk').value=f[3];render();$('aerr').textContent='';}).catch(e=>$('aerr').textContent=e.message); }
-function logout(){sessionStorage.removeItem('rv_auth');location.reload();}
-function clearF(){
-  ['fd','td','fk'].forEach(i=>$(i).value='');
-  document.querySelectorAll('.fcItem').forEach(c=>c.checked=true); if($('fcAll'))$('fcAll').checked=true;
-  clientBoxChanged(); render();
-}
-function toggleClientBox(){ const b=$('fcBox'); b.style.display = b.style.display==='none' ? 'block' : 'none'; }
-document.addEventListener('click', e=>{ if($('fcBox') && $('fcBox').style.display==='block' && !e.target.closest('#fcBox') && e.target.id!=='fcBtn') $('fcBox').style.display='none'; });
-function toggleAllClients(checked){ document.querySelectorAll('.fcItem').forEach(c=>c.checked=checked); clientBoxChanged(); }
-function clientBoxChanged(){
-  const items=[...document.querySelectorAll('.fcItem')]; SELC=new Set(items.filter(c=>c.checked).map(c=>c.value));
-  if($('fcAll')) $('fcAll').checked = SELC.size===items.length;
-  updateClientBtnLabel(); render();
-}
-function updateClientBtnLabel(){
-  const items=[...document.querySelectorAll('.fcItem')];
-  $('fcBtn').textContent = SELC.size===0 ? 'No client selected' : (SELC.size===items.length ? 'All clients' : (SELC.size<=2 ? [...SELC].join(', ') : SELC.size+' clients selected'));
+loadViaGviz();
+
+// ===== Apps Script Web App URL (Deploy > Web app > Execute as: Me, Access: Anyone) =====
+const API = 'https://script.google.com/macros/s/AKfycbxyDWC6TCiNc4yiM9kpu6ejyr-a88jIJgYyf4xQgVOdB5a30SUdZY2IOXFNkbmPSvWr1g/exec';
+function api(action, payload){
+  if(API.startsWith('PASTE')) return Promise.reject(new Error('index.html me API (Web App URL) paste karo'));
+  return fetch(API, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(Object.assign({action}, payload))})
+    .then(r=>r.json()).then(j=>{ if(j && j.error) throw new Error(j.error); return j; });
 }
 
-function render(){
-  const f=$('fd').value?new Date($('fd').value+'T00:00'):null, t=$('td').value?new Date($('td').value+'T00:00'):null, k=$('fk').value;
-  const rows=LOG.map((r,i)=>Object.assign({i,d:pd(r.date)},r)).filter(r=>(!f||(r.d&&r.d>=f))&&(!t||(r.d&&r.d<=t))&&SELC.has(r.client)&&(!k||r.courier===k))
-    .sort((a,b)=>(b.d||0)-(a.d||0)||b.i-a.i);
-  window._filtered = rows;
-  $('k1').textContent=rows.reduce((n,r)=>n+(+r.count||0),0); $('k2').textContent=rows.length; $('k3').textContent=new Set(rows.map(r=>r.client)).size;
-  $('rows').innerHTML=rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.client)}</td><td>${esc(r.courier)}</td><td>${esc(r.count)}</td>
-    <td>${r.pdf?`<a href="${esc(r.pdf)}" target="_blank" rel="noopener">PDF</a>`:'-'}</td><td>${r.xlsx?`<a href="${esc(r.xlsx)}" target="_blank" rel="noopener">Excel</a>`:'-'}</td>
-    <td>${esc(r.mail)||'-'}</td><td><a href="#" onclick="scans(${r.i});return false">View</a></td></tr>`).join('')||'<tr><td colspan="8">No data</td></tr>';
+$('awb').addEventListener('keydown', e=>{
+  if(e.key!=='Enter') return;
+  const v = e.target.value.trim(); e.target.value='';
+  if(!v) return;
+  if(!$('scanner').value||!$('client').value||!$('courier').value) return msg('Pehle Scanner, Client aur Courier select karo');
+  if(closed) return msg('Session closed hai — Start New Session karo');
+  if(cur.some(x=>x.awb===v)) return msg('Duplicate AWB: '+v);
+  cur.push({awb:v, box:''}); renderCur();
+});
+
+function renderCur(){
+  $('cnt').textContent = cur.length;
+  $('scanRows').innerHTML = cur.map((it,i)=>`<tr><td>${i+1}</td><td>${it.awb}</td><td>
+    <select onchange="setBox(${i},this.value)">
+      <option value="" ${it.box===''?'selected':''}></option>
+      ${BOX_OPTS.map(o=>`<option ${it.box===o?'selected':''}>${o}</option>`).join('')}
+    </select></td><td><a href="#" onclick="del(${i});return false">remove</a></td></tr>`).reverse().join('');
 }
-function downloadCsv(){
-  const rows = window._filtered || [];
-  if(!rows.length){ $('aerr').textContent='Koi data nahi hai (filter check karo)'; return; }
-  const byClient = {};
-  rows.forEach(r=>{ (byClient[r.client]=byClient[r.client]||[]).push(r); });
-  const head=['Client','Date','Courier','Count of Return Received','PDF Link','Excel Link'];
-  const esc2=v=>{ v=String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
-  const lines=[head.join(',')];
-  Object.keys(byClient).sort().forEach(c=>{
-    let tot=0;
-    byClient[c].forEach(r=>{ tot+=(+r.count||0); lines.push([c,r.date,r.courier,r.count,r.pdf,r.xlsx].map(esc2).join(',')); });
-    lines.push([c,'','','Total: '+tot,'',''].map(esc2).join(','));
-    lines.push('');
-  });
-  const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='Return_Summary_ClientWise_'+new Date().toISOString().slice(0,10)+'.csv';
-  document.body.appendChild(a); a.click(); a.remove();
+function setBox(i,v){ cur[i].box=v; }
+function del(i){ cur.splice(i,1); renderCur(); }
+
+function pushCur(){
+  if(!cur.length) return;
+  const c=$('client').value, k=$('courier').value, ab=x=>x.replace(/[^A-Za-z0-9]/g,'').substring(0,3).toUpperCase(), d=new Date(), p=n=>String(n).padStart(2,'0');
+  sessions.push({client:c, courier:k, awbs:cur.slice(), status:'Open', manifest:'RET-'+ab(c)+'-'+ab(k)+'-'+p(d.getDate())+p(d.getMonth()+1)+String(d.getFullYear()).slice(2)+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())});
+  cur=[]; renderCur();
 }
-function scans(i){
-  const r=LOG[i], d=pd(r.date); $('mt').textContent=`${r.client} | ${r.courier} | ${r.date}`; $('mrows').innerHTML='<tr><td colspan="6">Loading...</td></tr>'; $('modal').style.display='block';
-  api('viewerScans',{client:r.client}).then(x=>{
-    const key=d?`${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`:'';
-    const list=x.scans.filter(s=>String(s.date).split(',')[0].trim()===key&&s.courier===r.courier);
-    $('mrows').innerHTML=list.map((s,n)=>`<tr><td>${n+1}</td><td>${esc(s.date)}</td><td>${esc(s.awb)}</td><td>${esc(s.courier)}</td><td>${esc(s.scanner)}</td><td>${esc(s.manifest)}</td></tr>`).join('')||'<tr><td colspan="6">AWB data nahi mila</td></tr>';
-  }).catch(e=>$('mrows').innerHTML=`<tr><td colspan="6">${esc(e.message)}</td></tr>`);
+function startNew(){
+  if(closed){ sessions=[]; closed=false; $('bPdf').disabled=false; $('bClose').disabled=false; }
+  else pushCur();
+  $('client').value=''; $('courier').value=''; renderSess(); $('client').focus();
 }
-// auto login within same browser tab session
-try{const a=JSON.parse(sessionStorage.getItem('rv_auth')||'null'); if(a){AUTH=a; api('viewerData').then(start).catch(()=>{AUTH=null;});}}catch(e){}
+function closeAll(){
+  if(!$('scanner').value) return msg('Scanner select karo');
+  pushCur();
+  if(!sessions.length) return msg('Koi scan nahi hai');
+  $('bClose').disabled=true;
+  api('closeAllSessions', {sessions:sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), scanner:$('scanner').value})
+    .then(()=>{
+      sessions.forEach(s=>s.status='Closed'); closed=true; $('bPdf').disabled=false; renderSess();
+      msg('Sab sessions close — data client ki tab me save ho gaya',true);
+    }).catch(e=>{ $('bClose').disabled=false; showLoadErr('Close All Session error: '+e.message); });
+}
+function savePdf(){
+  if(!$('scanner').value) return msg('Scanner select karo');
+  pushCur();
+  if(!sessions.length) return msg('Koi scan nahi hai');
+  $('bPdf').disabled=true; $('bClose').disabled=true; msg('Save ho raha hai, PDF/Excel ban rahe hain...',true);
+  const list = sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), sc=$('scanner').value;
+  const pre = closed ? Promise.resolve() : api('closeAllSessions', {sessions:list, scanner:sc});
+  pre.then(()=>{ closed=true; sessions.forEach(s=>s.status='Closed'); renderSess(); return api('savePdf', {sessions:list, scanner:sc}); })
+    .then(r=>{
+      r.forEach((x,i)=>{ sessions[i].pdf=x.pdf; sessions[i].xlsx=x.xlsx; sessions[i].status='PDF Saved'; });
+      renderSess(); msg('PDF + Excel save ho gaye, links sheet me add ho gaye',true);
+    }).catch(e=>{ $('bPdf').disabled=false; showLoadErr('Save PDF error: '+e.message); });
+}
+function renderSess(){
+  $('sessRows').innerHTML = sessions.map(s=>`<tr><td>${s.client}</td><td>${s.courier}</td><td>${s.awbs.length}</td><td>${s.status}</td>
+    <td>${s.pdf?`<a href="${s.pdf}" target="_blank">PDF</a>`:'-'}</td><td>${s.xlsx?`<a href="${s.xlsx}" target="_blank">Excel</a>`:'-'}</td></tr>`).join('');
+}
 </script>
 </body>
 </html>
