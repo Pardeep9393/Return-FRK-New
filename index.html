@@ -39,7 +39,7 @@
 </head>
 <body>
 <header>
-  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v10-github</span></span>
+  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v11-github</span></span>
   <div class="tabs">
     <button id="tabAdminBtn" class="active" onclick="showTab('admin')">Admin</button>
     <button id="tabViewerBtn" onclick="showTab('viewer')">Viewer</button>
@@ -153,7 +153,7 @@ function showTab(t){
 /* ======================= ADMIN LOGIC ======================= */
 let sessions = [];      // completed sessions (client, courier, awbs, links)
 let cur = [];           // {awb, box}
-const BOX_OPTS=['Bad','Damage','Open','QC Failed'];
+const BOX_OPTS=['Damage Box & Open','Froud','QC Failed'];
 let closed = false;
 let pdfSaved = true;   // false right after Close, until Save PDF succeeds — blocks Start New Session
 
@@ -259,7 +259,14 @@ const vEsc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;'
 let VLOG=[], VAUTH=null, VSELC=new Set();
 const VMON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 function vapi(action,extra){ return api(action, Object.assign({}, VAUTH, extra)); }
-function vpd(s){const m=String(s).match(/(\d+)-(\w+)-(\d+)/);return m?new Date(+m[3],VMON[m[2].toLowerCase().slice(0,3)],+m[1]):null;}
+function vpd(s){
+  s=String(s).trim();
+  let m=s.match(/^(\d{1,2})-(\w{3})/i);
+  if(m){ const y=s.match(/(\d{4})/); if(y) return new Date(+y[1], VMON[m[2].toLowerCase()], +m[1]); }
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m) return new Date(+m[3], +m[1]-1, +m[2]);
+  return null;
+}
 
 function vLoginFn(){
   VAUTH={email:$('vEm').value.trim(),password:$('vPw').value};
@@ -324,8 +331,6 @@ function vDownloadCsv(){
     const lines=[head.join(',')];
     Object.keys(byClient).sort().forEach(c=>{
       byClient[c].forEach(s=>lines.push([c,s.date,s.awb,s.courier,s.scanner,s.boxCondition,s.manifest].map(esc2).join(',')));
-      lines.push(['','','','','Total AWB:',byClient[c].length,''].map(esc2).join(','));
-      lines.push('');
     });
     const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
