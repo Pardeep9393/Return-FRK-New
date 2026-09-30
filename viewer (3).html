@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Return Received - Viewer</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
+  header{background:#1a3c6e;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+  header b{font-size:17px}.wrap{max-width:1100px;margin:14px auto;padding:0 10px}
+  .card{background:#fff;border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px #0002}
+  .row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:140px}
+  label{font-size:12px;color:#555;display:block;margin-bottom:3px}
+  input,select{width:100%;padding:9px;border:1px solid #bbb;border-radius:6px;font-size:14px}
+  button{padding:9px 14px;border:0;border-radius:6px;background:#1a73e8;color:#fff;cursor:pointer;font-size:14px}
+  button.g{background:#5f6368}
+  #login{max-width:340px;margin:60px auto}
+  #login .card>*{margin-bottom:10px}
+  .err{color:#c5221f;font-size:13px;min-height:16px}
+  .kpis{display:flex;gap:10px;flex-wrap:wrap}.kpi{flex:1;min-width:120px;text-align:center}
+  .kpi span{display:block;font-size:24px;font-weight:bold;color:#1a3c6e}
+  .tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border-bottom:1px solid #ddd;padding:7px 8px;text-align:left;white-space:nowrap}th{background:#f1f3f4}
+  a{color:#1a73e8}
+  #modal{display:none;position:fixed;inset:0;background:#0007;padding:20px;overflow:auto}
+  #modal .card{max-width:800px;margin:0 auto}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="card">
+    <h3 style="margin:0 0 4px">Return Received - Viewer</h3>
+    <div><label>Email</label><input id="em" type="email" placeholder="you@company.com"></div>
+    <div><label>Password</label><input id="pw" type="password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button onclick="doLogin()" style="width:100%">Login</button>
+    <div class="err" id="lerr"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <header><b>Return Received - Viewer</b><span><span id="who" style="font-size:12px;margin-right:10px"></span><button class="g" onclick="logout()">Logout</button></span></header>
+  <div class="wrap">
+    <div class="card"><div class="row">
+      <div><label>From Date</label><input type="date" id="fd"></div>
+      <div><label>To Date</label><input type="date" id="td"></div>
+      <div style="position:relative"><label>Client (multi-select)</label>
+        <button class="g" type="button" style="width:100%;text-align:left;background:#fff;color:#222;border:1px solid #bbb" onclick="toggleClientBox()" id="fcBtn">All clients</button>
+        <div id="fcBox" style="display:none;position:absolute;z-index:10;background:#fff;border:1px solid #bbb;border-radius:6px;max-height:220px;overflow:auto;min-width:220px;padding:6px;box-shadow:0 2px 8px #0003"></div>
+      </div>
+      <div><label>Courier</label><select id="fk"></select></div>
+      <div style="flex:0 0 auto;align-self:flex-end;display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="render()">Filter</button><button class="g" onclick="clearF()">Clear</button><button class="g" onclick="load()">Refresh</button>
+        <button onclick="downloadCsv()">Download (Client-wise)</button>
+      </div>
+    </div></div>
+    <div class="card kpis">
+      <div class="kpi"><span id="k1">0</span>Total Returns</div>
+      <div class="kpi"><span id="k2">0</span>Manifests</div>
+      <div class="kpi"><span id="k3">0</span>Clients</div>
+    </div>
+    <div class="card tw"><table><thead><tr><th>Date</th><th>Client</th><th>Courier</th><th>Count</th><th>PDF</th><th>Excel</th><th>Mail</th><th>AWBs</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="err" id="aerr"></div>
+  </div>
+</div>
+
+<div id="modal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="card"><div style="display:flex;justify-content:space-between"><b id="mt"></b><button class="g" onclick="$('modal').style.display='none'">Close</button></div>
+    <div class="tw" style="margin-top:10px"><table><thead><tr><th>#</th><th>Scan Date</th><th>AWB</th><th>Courier</th><th>Scanner</th><th>Manifest</th></tr></thead><tbody id="mrows"></tbody></table></div>
+  </div>
+</div>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycbxyDWC6TCiNc4yiM9kpu6ejyr-a88jIJgYyf4xQgVOdB5a30SUdZY2IOXFNkbmPSvWr1g/exec';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let LOG=[], AUTH=null, SELC=new Set();
+const MON={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+
+function api(action,extra){
+  return fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({action},AUTH,extra))})
+    .then(r=>r.json()).then(j=>{if(j&&j.error)throw new Error(j.error);return j;});
+}
+function pd(s){const m=String(s).match(/(\d+)-(\w+)-(\d+)/);return m?new Date(+m[3],MON[m[2].toLowerCase().slice(0,3)],+m[1]):null;}
+
+function doLogin(){
+  AUTH={email:$('em').value.trim(),password:$('pw').value};
+  $('lerr').textContent='Checking...';
+  api('viewerData').then(d=>{
+    sessionStorage.setItem('rv_auth',JSON.stringify(AUTH));
+    start(d);
+  }).catch(e=>{AUTH=null;$('lerr').textContent=e.message;});
+}
+function start(d){
+  LOG=d.log; $('login').style.display='none'; $('app').style.display='block'; $('who').textContent=AUTH.email;
+  const u=k=>[...new Set(LOG.map(r=>r[k]))].sort();
+  const clients=u('client');
+  SELC=new Set(clients);
+  $('fcBox').innerHTML='<label style="display:block;padding:3px 4px;font-weight:bold;border-bottom:1px solid #eee;margin-bottom:4px"><input type="checkbox" id="fcAll" checked onchange="toggleAllClients(this.checked)"> All</label>'+
+    clients.map(c=>`<label style="display:block;padding:3px 4px"><input type="checkbox" class="fcItem" value="${esc(c)}" checked onchange="clientBoxChanged()"> ${esc(c)}</label>`).join('');
+  $('fk').innerHTML='<option value="">All</option>'+u('courier').map(x=>`<option>${esc(x)}</option>`).join('');
+  updateClientBtnLabel();
+  render();
+}
+function load(){ $('aerr').textContent='Loading...'; api('viewerData').then(d=>{const f=[$('fd').value,$('td').value,$('fc').value,$('fk').value];start(d);$('fd').value=f[0];$('td').value=f[1];$('fc').value=f[2];$('fk').value=f[3];render();$('aerr').textContent='';}).catch(e=>$('aerr').textContent=e.message); }
+function logout(){sessionStorage.removeItem('rv_auth');location.reload();}
+function clearF(){
+  ['fd','td','fk'].forEach(i=>$(i).value='');
+  document.querySelectorAll('.fcItem').forEach(c=>c.checked=true); if($('fcAll'))$('fcAll').checked=true;
+  clientBoxChanged(); render();
+}
+function toggleClientBox(){ const b=$('fcBox'); b.style.display = b.style.display==='none' ? 'block' : 'none'; }
+document.addEventListener('click', e=>{ if($('fcBox') && $('fcBox').style.display==='block' && !e.target.closest('#fcBox') && e.target.id!=='fcBtn') $('fcBox').style.display='none'; });
+function toggleAllClients(checked){ document.querySelectorAll('.fcItem').forEach(c=>c.checked=checked); clientBoxChanged(); }
+function clientBoxChanged(){
+  const items=[...document.querySelectorAll('.fcItem')]; SELC=new Set(items.filter(c=>c.checked).map(c=>c.value));
+  if($('fcAll')) $('fcAll').checked = SELC.size===items.length;
+  updateClientBtnLabel(); render();
+}
+function updateClientBtnLabel(){
+  const items=[...document.querySelectorAll('.fcItem')];
+  $('fcBtn').textContent = SELC.size===0 ? 'No client selected' : (SELC.size===items.length ? 'All clients' : (SELC.size<=2 ? [...SELC].join(', ') : SELC.size+' clients selected'));
+}
+
+function render(){
+  const f=$('fd').value?new Date($('fd').value+'T00:00'):null, t=$('td').value?new Date($('td').value+'T00:00'):null, k=$('fk').value;
+  const rows=LOG.map((r,i)=>Object.assign({i,d:pd(r.date)},r)).filter(r=>(!f||(r.d&&r.d>=f))&&(!t||(r.d&&r.d<=t))&&SELC.has(r.client)&&(!k||r.courier===k))
+    .sort((a,b)=>(b.d||0)-(a.d||0)||b.i-a.i);
+  window._filtered = rows;
+  $('k1').textContent=rows.reduce((n,r)=>n+(+r.count||0),0); $('k2').textContent=rows.length; $('k3').textContent=new Set(rows.map(r=>r.client)).size;
+  $('rows').innerHTML=rows.map(r=>`<tr><td>${esc(r.date)}</td><td>${esc(r.client)}</td><td>${esc(r.courier)}</td><td>${esc(r.count)}</td>
+    <td>${r.pdf?`<a href="${esc(r.pdf)}" target="_blank" rel="noopener">PDF</a>`:'-'}</td><td>${r.xlsx?`<a href="${esc(r.xlsx)}" target="_blank" rel="noopener">Excel</a>`:'-'}</td>
+    <td>${esc(r.mail)||'-'}</td><td><a href="#" onclick="scans(${r.i});return false">View</a></td></tr>`).join('')||'<tr><td colspan="8">No data</td></tr>';
+}
+function downloadCsv(){
+  const rows = window._filtered || [];
+  if(!rows.length){ $('aerr').textContent='Koi data nahi hai (filter check karo)'; return; }
+  const clients=[...new Set(rows.map(r=>r.client))];
+  const f=$('fd').value?new Date($('fd').value+'T00:00'):null, t=$('td').value?new Date($('td').value+'T00:00'):null, k=$('fk').value;
+  $('aerr').textContent='AWB data fetch ho raha hai...';
+  api('viewerAllScans',{clients}).then(d=>{
+    const esc2=v=>{ v=String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+    const scans=d.scans.filter(s=>{ const sd=pd(s.date); return (!f||(sd&&sd>=f))&&(!t||(sd&&sd<=t))&&(!k||s.courier===k); });
+    if(!scans.length){ $('aerr').textContent='Selected filter ke liye AWB data nahi mila'; return; }
+    const byClient={}; scans.forEach(s=>{ (byClient[s.client]=byClient[s.client]||[]).push(s); });
+    const head=['Client','Scan Date','AWB','Courier','Scanner','Box Condition','Manifest'];
+    const lines=[head.join(',')];
+    Object.keys(byClient).sort().forEach(c=>{
+      byClient[c].forEach(s=>lines.push([c,s.date,s.awb,s.courier,s.scanner,s.boxCondition,s.manifest].map(esc2).join(',')));
+      lines.push(['','','','','Total AWB:',byClient[c].length,''].map(esc2).join(','));
+      lines.push('');
+    });
+    const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='Return_AWB_ClientWise_'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a); a.click(); a.remove(); $('aerr').textContent='';
+  }).catch(e=>$('aerr').textContent=e.message);
+}
+function scans(i){
+  const r=LOG[i], d=pd(r.date); $('mt').textContent=`${r.client} | ${r.courier} | ${r.date}`; $('mrows').innerHTML='<tr><td colspan="6">Loading...</td></tr>'; $('modal').style.display='block';
+  api('viewerScans',{client:r.client}).then(x=>{
+    const key=d?`${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`:'';
+    const list=x.scans.filter(s=>String(s.date).split(',')[0].trim()===key&&s.courier===r.courier);
+    $('mrows').innerHTML=list.map((s,n)=>`<tr><td>${n+1}</td><td>${esc(s.date)}</td><td>${esc(s.awb)}</td><td>${esc(s.courier)}</td><td>${esc(s.scanner)}</td><td>${esc(s.manifest)}</td></tr>`).join('')||'<tr><td colspan="6">AWB data nahi mila</td></tr>';
+  }).catch(e=>$('mrows').innerHTML=`<tr><td colspan="6">${esc(e.message)}</td></tr>`);
+}
+// auto login within same browser tab session
+try{const a=JSON.parse(sessionStorage.getItem('rv_auth')||'null'); if(a){AUTH=a; api('viewerData').then(start).catch(()=>{AUTH=null;});}}catch(e){}
+</script>
+</body>
+</html>
