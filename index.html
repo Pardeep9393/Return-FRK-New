@@ -156,6 +156,9 @@ let cur = [];           // {awb, box}
 const BOX_OPTS=['Damage Box & Open','Froud','QC Failed'];
 let closed = false;
 let pdfSaved = true;   // false right after Close, until Save PDF succeeds — blocks Start New Session
+let busy = false;      // in-flight lock — double Close/Save rokne ke liye
+// Scanner ka Enter focused button ko dobara click na kare (duplicate save ka main reason)
+document.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target.tagName==='BUTTON') e.preventDefault(); }, true);
 
 function showConfirm(text, onYes){ $('cmMsg').textContent = text; $('cModal').style.display='flex'; window._cmYes = onYes; }
 function cmNo(){ $('cModal').style.display='none'; window._cmYes=null; }
@@ -218,36 +221,42 @@ function startNew(){
   $('client').value=''; $('courier').value=''; renderSess(); $('client').focus();
 }
 function closeAll(){
+  if(busy) return;
+  if(closed) return msg('Sessions already close hain — ab Save PDF karo');
   if(!$('scanner').value) return msg('Scanner select karo');
   pushCur();
   if(!sessions.length) return msg('Koi scan nahi hai');
   showConfirm('Sab sessions close karne hain? Data client ki tab me save ho jayega.', doCloseAll);
 }
 function doCloseAll(){
-  $('bClose').disabled=true;
+  if(busy) return; busy=true;
+  $('bClose').disabled=true; $('bPdf').disabled=true;
   api('closeAllSessions', {sessions:sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), scanner:$('scanner').value})
     .then(()=>{
-      sessions.forEach(s=>s.status='Closed'); closed=true; pdfSaved=false;
+      sessions.forEach(s=>s.status='Closed'); closed=true; pdfSaved=false; busy=false;
       $('bPdf').disabled=false; $('bStart').disabled=true; renderSess();
       msg('Sessions close ho gaye — Save PDF karna zaroori hai naye session ke liye',true);
-    }).catch(e=>{ $('bClose').disabled=false; showLoadErr('Close All Session error: '+e.message); });
+    }).catch(e=>{ busy=false; $('bClose').disabled=false; $('bPdf').disabled=false; showLoadErr('Close All Session error: '+e.message); });
 }
 function savePdf(){
+  if(busy) return;
+  if(closed && pdfSaved) return msg('PDF already save ho chuka hai — Start New Session karo');
   if(!$('scanner').value) return msg('Scanner select karo');
   pushCur();
   if(!sessions.length) return msg('Koi scan nahi hai');
   showConfirm('PDF + Excel save karna hai? Links Summary sheet me add honge.', doSavePdf);
 }
 function doSavePdf(){
+  if(busy) return; busy=true;
   $('bPdf').disabled=true; $('bClose').disabled=true; $('bStart').disabled=true; msg('Save ho raha hai, PDF/Excel ban rahe hain...',true);
   const list = sessions.map(({client,courier,awbs,manifest})=>({client,courier,awbs,manifest})), sc=$('scanner').value;
   const pre = closed ? Promise.resolve() : api('closeAllSessions', {sessions:list, scanner:sc});
   pre.then(()=>{ closed=true; sessions.forEach(s=>s.status='Closed'); renderSess(); return api('savePdf', {sessions:list, scanner:sc}); })
     .then(r=>{
       r.forEach((x,i)=>{ sessions[i].pdf=x.pdf; sessions[i].xlsx=x.xlsx; sessions[i].status='PDF Saved'; });
-      pdfSaved=true; $('bStart').disabled=false;
+      pdfSaved=true; busy=false; $('bStart').disabled=false;
       renderSess(); msg('PDF + Excel save ho gaye, links sheet me add ho gaye',true);
-    }).catch(e=>{ $('bPdf').disabled=false; $('bClose').disabled=false; showLoadErr('Save PDF error: '+e.message); });
+    }).catch(e=>{ busy=false; $('bPdf').disabled=false; $('bClose').disabled=!!closed; showLoadErr('Save PDF error: '+e.message); });
 }
 function renderSess(){
   $('sessRows').innerHTML = sessions.map(s=>`<tr><td>${s.client}</td><td>${s.courier}</td><td>${s.awbs.length}</td><td>${s.status}</td>
