@@ -39,7 +39,7 @@
 </head>
 <body>
 <header>
-  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v11-github</span></span>
+  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v12-ddmmyyyy</span></span>
   <div class="tabs">
     <button id="tabAdminBtn" class="active" onclick="showTab('admin')">Admin</button>
     <button id="tabViewerBtn" onclick="showTab('viewer')">Viewer</button>
@@ -273,7 +273,7 @@ function vpd(s){
   let m=s.match(/^(\d{1,2})-(\w{3})/i);
   if(m){ const y=s.match(/(\d{4})/); if(y) return new Date(+y[1], VMON[m[2].toLowerCase()], +m[1]); }
   m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if(m) return new Date(+m[3], +m[1]-1, +m[2]);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]); // dd/mm/yyyy
   return null;
 }
 
@@ -350,8 +350,8 @@ function vDownloadCsv(){
 function vScans(i){
   const r=VLOG[i], d=vpd(r.date); $('vMt').textContent=`${r.client} | ${r.courier} | ${r.date}`; $('vMrows').innerHTML='<tr><td colspan="6">Loading...</td></tr>'; $('vModal').style.display='block';
   vapi('viewerScans',{client:r.client}).then(x=>{
-    const key=d?`${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`:'';
-    const list=x.scans.filter(s=>String(s.date).split(',')[0].trim()===key&&s.courier===r.courier);
+    const sameDay=(a,b)=>a&&b&&a.getTime()===b.getTime();
+    const list=x.scans.filter(s=>sameDay(vpd(String(s.date).split(',')[0].trim()),d)&&s.courier===r.courier);
     $('vMrows').innerHTML=list.map((s,n)=>`<tr><td>${n+1}</td><td>${vEsc(s.date)}</td><td>${vEsc(s.awb)}</td><td>${vEsc(s.courier)}</td><td>${vEsc(s.scanner)}</td><td>${vEsc(s.manifest)}</td></tr>`).join('')||'<tr><td colspan="6">AWB data nahi mila</td></tr>';
   }).catch(e=>$('vMrows').innerHTML=`<tr><td colspan="6">${vEsc(e.message)}</td></tr>`);
 }
