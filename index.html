@@ -192,7 +192,7 @@ $('awb').addEventListener('keydown', e=>{
   if(!v) return;
   if(!$('scanner').value||!$('client').value||!$('courier').value) return msg('Pehle Scanner, Client aur Courier select karo');
   if(closed) return msg('Session closed hai — Start New Session karo');
-  if(cur.some(x=>x.awb===v)) return msg('Duplicate AWB: '+v);
+  if(cur.some(x=>String(x.awb).toUpperCase()===v.toUpperCase())) return msg('Duplicate AWB: '+v);
   cur.push({awb:v, box:''}); renderCur();
 });
 
