@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   *{box-sizing:border-box}
-  body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222}
+  body{font-family:Arial,sans-serif;margin:0;background:#f4f6f8;color:#222;overscroll-behavior-y:contain}
   header{background:#1a3c6e;color:#fff;padding:14px 20px;font-size:18px;font-weight:bold;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
   .tabs{display:flex;gap:6px}
   .tabs button{padding:7px 16px;border:0;border-radius:6px;cursor:pointer;font-size:13px;background:#ffffff33;color:#fff}
@@ -157,6 +157,24 @@ const BOX_OPTS=['Damage Box & Open','Froud','QC Failed'];
 let closed = false;
 let pdfSaved = true;   // false right after Close, until Save PDF succeeds — blocks Start New Session
 let busy = false;      // in-flight lock — double Close/Save rokne ke liye
+
+// ---- Refresh guard: scan ke baad jab tak Close All + Save PDF na ho, page refresh/close na ho ----
+function isDirty(){
+  return cur.length>0 || (sessions.length>0 && !(closed && pdfSaved));
+}
+// Browser ka native warning (refresh, tab close, back sab par)
+window.addEventListener('beforeunload', e=>{
+  if(isDirty()){ e.preventDefault(); e.returnValue=''; return ''; }
+});
+// F5 / Ctrl+R / Ctrl+Shift+R ko direct block karo
+document.addEventListener('keydown', e=>{
+  const k=e.key.toLowerCase();
+  if(isDirty() && (e.key==='F5' || ((e.ctrlKey||e.metaKey) && k==='r'))){
+    e.preventDefault();
+    msg('Pehle Close All Session aur Save PDF karo, tabhi refresh karo');
+  }
+}, true);
+
 // Scanner ka Enter focused button ko dobara click na kare (duplicate save ka main reason)
 document.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target.tagName==='BUTTON') e.preventDefault(); }, true);
 
