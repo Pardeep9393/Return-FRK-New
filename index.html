@@ -39,7 +39,7 @@
 </head>
 <body>
 <header>
-  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v12-ddmmyyyy</span></span>
+  <span>Return Received Dashboard <span style="font-size:11px;font-weight:normal;opacity:.7">v13-autosave</span></span>
   <div class="tabs">
     <button id="tabAdminBtn" class="active" onclick="showTab('admin')">Admin</button>
     <button id="tabViewerBtn" onclick="showTab('viewer')">Viewer</button>
@@ -158,6 +158,54 @@ let closed = false;
 let pdfSaved = true;   // false right after Close, until Save PDF succeeds — blocks Start New Session
 let busy = false;      // in-flight lock — double Close/Save rokne ke liye
 
+// ---- Auto-save draft (server + localStorage) ----
+let draftId = null, curMf = null, dTimer = null, dBusy = false, dDirty = false;
+function mkMf(c,k){
+  const ab=x=>x.replace(/[^A-Za-z0-9]/g,'').substring(0,3).toUpperCase(), d=new Date(), p=n=>String(n).padStart(2,'0');
+  return 'RET-'+ab(c)+'-'+ab(k)+'-'+p(d.getDate())+p(d.getMonth()+1)+String(d.getFullYear()).slice(2)+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+}
+function draftSnapshot(){
+  const list = (closed && pdfSaved) ? [] : sessions.map(s=>({client:s.client,courier:s.courier,awbs:s.awbs,manifest:s.manifest}));
+  if(cur.length && !closed) list.push({client:$('client').value,courier:$('courier').value,awbs:cur.slice(),manifest:curMf});
+  return {draftId, scanner:$('scanner').value, sessions:list};
+}
+function draftTouch(){
+  if(!cur.length && !sessions.length && !draftId) return;
+  if(!draftId) draftId='D'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  try{ localStorage.setItem('rv_draft', JSON.stringify(draftSnapshot())); }catch(e){}
+  dDirty=true;
+  if(dTimer||dBusy) return;
+  dTimer=setTimeout(draftFlush,3000);
+}
+function draftFlush(){
+  dTimer=null;
+  if(!draftId || !dDirty || dBusy) return;
+  dDirty=false; dBusy=true;
+  api('draftSave', draftSnapshot()).catch(()=>{dDirty=true;}).finally(()=>{
+    dBusy=false; if(dDirty && !dTimer) dTimer=setTimeout(draftFlush,3000);
+  });
+}
+function draftDone(){
+  const id=draftId; draftId=null; curMf=null; dDirty=false; clearTimeout(dTimer); dTimer=null;
+  try{ localStorage.removeItem('rv_draft'); }catch(e){}
+  if(id) api('draftClear',{draftId:id}).catch(()=>{});
+}
+function restoreDraft(){
+  try{
+    const d=JSON.parse(localStorage.getItem('rv_draft')||'null');
+    if(!d || !d.sessions || !d.sessions.length) return;
+    const n=d.sessions.reduce((a,s)=>a+s.awbs.length,0);
+    showConfirm('Pichla unsaved scan mila ('+n+' AWB). Restore karna hai?', ()=>{
+      draftId=d.draftId; curMf=null; cur=[]; closed=false; pdfSaved=true;
+      sessions=d.sessions.map(s=>Object.assign({status:'Open'},s));
+      if(d.scanner) $('scanner').value=d.scanner;
+      renderCur(); renderSess();
+      msg('Scan restore ho gaye — Close All Session aur Save PDF karo',true);
+    });
+  }catch(e){}
+}
+['scanner','client','courier'].forEach(id=>$(id).addEventListener('change',()=>{ if(cur.length||sessions.length) draftTouch(); }));
+
 // ---- Refresh guard: scan ke baad jab tak Close All + Save PDF na ho, page refresh/close na ho ----
 function isDirty(){
   return cur.length>0 || (sessions.length>0 && !(closed && pdfSaved));
@@ -193,6 +241,7 @@ function showLoadErr(t){ const m=$('msg'); m.textContent=t; m.className='er'; m.
 function applyMasters(d){
   const f = a => [...new Set((a||[]).map(x=>String(x||'').trim()).filter(x=>x && !HEADS.includes(x.toLowerCase())))];
   fill('scanner',f(d.scanners)); fill('client',f(d.clients)); fill('courier',f(d.couriers));
+  restoreDraft();
 }
 function loadViaGviz(){
   fetch('https://docs.google.com/spreadsheets/d/'+SS_ID+'/gviz/tq?tqx=out:json&gid=0&headers=0')
@@ -211,10 +260,11 @@ $('awb').addEventListener('keydown', e=>{
   if(!$('scanner').value||!$('client').value||!$('courier').value) return msg('Pehle Scanner, Client aur Courier select karo');
   if(closed) return msg('Session closed hai — Start New Session karo');
   if(cur.some(x=>String(x.awb).toUpperCase()===v.toUpperCase())) return msg('Duplicate AWB: '+v);
-  cur.push({awb:v, box:''}); renderCur();
+  cur.push({awb:v, box:''}); if(!curMf) curMf=mkMf($('client').value,$('courier').value); renderCur();
 });
 
 function renderCur(){
+  draftTouch();
   $('cnt').textContent = cur.length;
   $('scanRows').innerHTML = cur.map((it,i)=>`<tr><td>${i+1}</td><td>${it.awb}</td><td>
     <select onchange="setBox(${i},this.value)">
@@ -222,14 +272,14 @@ function renderCur(){
       ${BOX_OPTS.map(o=>`<option ${it.box===o?'selected':''}>${o}</option>`).join('')}
     </select></td><td><a href="#" onclick="del(${i});return false">remove</a></td></tr>`).reverse().join('');
 }
-function setBox(i,v){ cur[i].box=v; }
+function setBox(i,v){ cur[i].box=v; draftTouch(); }
 function del(i){ cur.splice(i,1); renderCur(); }
 
 function pushCur(){
   if(!cur.length) return;
-  const c=$('client').value, k=$('courier').value, ab=x=>x.replace(/[^A-Za-z0-9]/g,'').substring(0,3).toUpperCase(), d=new Date(), p=n=>String(n).padStart(2,'0');
-  sessions.push({client:c, courier:k, awbs:cur.slice(), status:'Open', manifest:'RET-'+ab(c)+'-'+ab(k)+'-'+p(d.getDate())+p(d.getMonth()+1)+String(d.getFullYear()).slice(2)+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())});
-  cur=[]; renderCur();
+  const c=$('client').value, k=$('courier').value;
+  sessions.push({client:c, courier:k, awbs:cur.slice(), status:'Open', manifest: curMf || mkMf(c,k)});
+  cur=[]; curMf=null; renderCur();
 }
 function startNew(){
   if(closed){
@@ -272,7 +322,7 @@ function doSavePdf(){
   pre.then(()=>{ closed=true; sessions.forEach(s=>s.status='Closed'); renderSess(); return api('savePdf', {sessions:list, scanner:sc}); })
     .then(r=>{
       r.forEach((x,i)=>{ sessions[i].pdf=x.pdf; sessions[i].xlsx=x.xlsx; sessions[i].status='PDF Saved'; });
-      pdfSaved=true; busy=false; $('bStart').disabled=false;
+      pdfSaved=true; busy=false; draftDone(); $('bStart').disabled=false;
       renderSess(); msg('PDF + Excel save ho gaye, links sheet me add ho gaye',true);
     }).catch(e=>{ busy=false; $('bPdf').disabled=false; $('bClose').disabled=!!closed; showLoadErr('Save PDF error: '+e.message); });
 }
